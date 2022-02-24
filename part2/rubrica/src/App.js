@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import personService from "./service/persons";
 
 const promise = axios.get("http://localhost:3001/persons");
 console.log(promise);
 
 const App = () => {
   useEffect(() => {
-    console.log("effect");
-    axios.get("http://localhost:3001/persons").then((response) => {
-      console.log("promise fulfilled");
-      setPersons(response.data);
+    personService.getAll().then((initialNotes) => {
+      setPersons(initialNotes);
     });
   }, []);
 
@@ -30,16 +29,23 @@ const App = () => {
     setNewNumber(e.target.value);
   };
 
-  const onSubmit = (e) => {
-    e.preventDefault();
-    console.log(newName);
-    if (
-      persons.some((item) => item.name === newName || item.number === newNumber)
-    ) {
-      alert("Esiste già questo nome in rubrica");
-    } else {
-      setPersons([...persons, { name: newName, number: newNumber }]);
-    }
+  const addPerson = (event) => {
+    event.preventDefault();
+    const personObject = {
+      name: newName,
+      number: newNumber,
+      id: persons.length + 1,
+    };
+    personService.create(personObject).then((returnedPerson) => {
+      setPersons(persons.concat(returnedPerson));
+      setNewName("");
+    });
+  };
+
+  const removePerson = (id) => {
+    personService.cancel(id).then((returnedPerson) => {
+      setPersons(persons.concat(returnedPerson));
+    });
   };
 
   const filtered = !filterName
@@ -63,7 +69,7 @@ const App = () => {
           number: <input onChange={handlerNumber} />
         </div>
         <div>
-          <button type="submit" onClick={onSubmit}>
+          <button type="submit" onClick={addPerson}>
             add
           </button>
         </div>
@@ -71,8 +77,9 @@ const App = () => {
       <h2>Numbers</h2>
       <ul>
         {filtered.map((person) => (
-          <li key={person.name}>
+          <li key={person.id}>
             {person.name} {person.number}
+            <button onClick={() => removePerson(person.id)}>delete</button>
           </li>
         ))}
       </ul>
