@@ -1,94 +1,98 @@
+require("dotenv").config();
 const { request, response } = require("express");
 const express = require("express");
 const app = express();
 const cors = require("cors");
 app.use(cors());
+app.use(express.static("build"));
 
-let notes = [
-  {
-    id: 1,
-    content: "HTML is easy",
-    date: "2022-05-30T17:30:31.098Z",
-    important: true,
-  },
-  {
-    id: 2,
-    content: "Browser can execute only Javascript",
-    date: "2022-05-30T18:39:34.091Z",
-    important: false,
-  },
-  {
-    id: 3,
-    content: "GET and POST are the most important methods of HTTP protocol",
-    date: "2022-05-30T19:20:14.298Z",
-    important: true,
-  },
-];
+const Person = require("./models/persons");
 
 app.get("/", (request, response) => {
   response.send("<h1>Hello Walter!</h1>");
+});
+
+app.get("/info", (request, response) => {
+  nPerson = Person.length;
+  date = new Date();
+  response.send(`<h2>Phonebook has ${nPerson} people</h2>
+  <p>${date}</p`);
 });
 
 app.use(express.json()); //The json-parser functions so that it takes the JSON data of a request, transforms it into a JavaScript object and then attaches it to the body property of the request object before the route handler is called.
 
 // get all resources
 
-app.get("/api/notes", (request, response) => {
-  response.json(notes);
+app.get("/api/persons", (request, response) => {
+  Person.find({}).then((persons) => {
+    response.json(persons);
+  });
 });
-
 //get one resource
 
-app.get("/api/notes/:id", (request, response) => {
-  const id = Number(request.params.id);
-  console.log(id);
-  const note = notes.find((note) => note.id === id);
-  if (note) {
-    response.json(note);
-  } else {
-    response.status(404).send("<h1>Questa nota non esiste.</h1>").end();
-  }
-  console.log(note);
-  response.json(note);
+app.get("/api/persons/:id", (request, response) => {
+  Person.findById(request.params.id)
+    .then((persons) => {
+      if (persons) {
+        response.json(persons);
+      } else {
+        response.status(404).end();
+      }
+    })
+    .catch((error) => next(error));
 });
 
 // delete one resource
 
-app.delete("/api/notes/:id", (request, response) => {
-  const id = Number(request.params.id);
-  notes = notes.filter((note) => note.id !== id);
-  response.status(204).end();
+app.delete("/api/persons/:id", (request, response, next) => {
+  Person.findByIdAndRemove(request.params.id)
+    .then((result) => {
+      response.status(204).end();
+    })
+    .catch((error) => next(error));
 });
 
 // add new resource
 
-const generateId = () => {
-  const maxId = notes.length > 0 ? Math.max(...notes.map((n) => n.id)) : 0;
-  return maxId + 1;
-};
-
-app.post("/api/notes", (request, response) => {
+app.post("/api/persons", (request, response) => {
   const body = request.body;
 
-  if (!body.content) {
-    return response.status(400).json({
-      errore: "content missing",
-    });
+  if (body.name === undefined) {
+    return response.status(400).json({ error: "name missing" });
   }
 
-  const note = {
-    content: body.content,
-    important: body.important || false,
-    date: new Date(),
-    id: generateId(),
-  };
+  const persons = new Person({
+    name: body.name,
+    number: body.number,
+  });
 
-  notes = notes.concat(note);
-  console.log(note);
-  response.json(note);
+  persons.save().then((savedPerson) => {
+    response.json(savedPerson);
+  });
 });
 
-const PORT = process.env.PORT || 3001;
+//update resource
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" });
+};
+
+app.use(unknownEndpoint);
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  }
+
+  next(error);
+};
+
+// this has to be the last loaded middleware.
+app.use(errorHandler);
+
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
